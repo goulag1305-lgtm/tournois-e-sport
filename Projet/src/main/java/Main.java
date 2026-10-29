@@ -1,55 +1,38 @@
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.Persistence;
-
+import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.util.*;
-
-/**
- * Classe principale exécutant la démonstration complète de l'application IMT Arena.
- */
+import java.util.concurrent.TimeUnit;
+/** Démonstration des principales fonctionnalités, sans saisie utilisateur. */
 public class Main {
-    public static void main(String[] args) {
-        System.out.println("=== DEMO IMT ARENA (VERSION ULTIMATE FLAT & COMMENTEE) ===");
-
-        // 1. Initialisation d'un jeu d'équipe et d'un arbitre qualifié
-        Jeu valorant = new JeuEquipe("Valorant", 3);
-        Arbitre arbitre = new Arbitre(1, "Dupont", "Jean", "Arb1", valorant);
-
-        // 2. Création de 3 équipes avec leurs coachs et joueurs respectifs
-        List<Equipe> equipes = new ArrayList<>();
-        for (int i = 1; i <= 3; i++) {
-            Equipe eq = new Equipe("Equipe_" + i);
-            eq.setCoach(new Coach(i, "Coach", "A", "C" + i));
+    public static void main(String[] args) throws Exception {
+        Jeu jeu = new JeuEquipe("Valorant", 3, 3);
+        Arbitre arbitre = new Arbitre(1, "Dupont", "Jean", "Arb1", "M", "0600000000");
+        arbitre.ajouterQualification(jeu);
+        Tournoi tournoi = new Tournoi("IMT Arena Cup", jeu, LocalDate.now(), 1200, 2);
+        tournoi.ajouterArbitre(arbitre);
+        for (int i = 1; i <= 4; i++) {
+            Equipe equipe = new Equipe("Equipe_" + i);
+            equipe.setCoach(new Coach(i + 10, "Coach", "C" + i, "Coach" + i, "M", "0600000000"));
             for (int j = 1; j <= 3; j++) {
-                eq.ajouterJoueur(new Joueur(i * 10 + j, "Joueur", "B", "J" + i + "_" + j));
+                equipe.ajouterJoueur(new Joueur(i * 10 + j + 100, "Joueur", "J" + j,
+                        "P" + i + "_" + j, "M", "0600000000"));
             }
-            equipes.add(eq);
+            tournoi.ajouterEquipe(equipe);
         }
-
-        // 3. Planification et génération des matchs du tournoi
-        Tournoi tournoi = new Tournoi("IMT Arena Cup", LocalDate.now(), valorant);
-        equipes.forEach(tournoi::inscrireEquipe);
-        tournoi.genererMatchs(arbitre);
-
-        // 4. Simulation du tournoi
-        tournoi.simuler(new Random(42));
-        System.out.println("Tournoi réussi (>=70% matchs joués) : " + tournoi.estReussi());
-
-        // 5. Persistance du rapport de tournoi via JPA (Base H2)
         EntityManagerFactory emf = Persistence.createEntityManagerFactory("arenaPU");
-        EntityManager em = emf.createEntityManager();
-        RapportRepository repo = new RapportRepository(em);
-
-        Equipe vainqueur = equipes.stream().max(Comparator.comparingInt(Equipe::getPoints)).orElse(equipes.get(0));
-        long nbJoues = tournoi.getMatchs().stream().filter(m -> m.getStatut() == StatutMatch.TERMINE).count();
-
-        RapportTournoi rapport = new RapportTournoi(tournoi.getNom(), valorant.getNom(), (int) nbJoues, vainqueur.getNom(), tournoi.estReussi());
-        repo.sauvegarder(rapport);
-
-        System.out.println("Rapport sauvegardé en base H2 : " + repo.trouverTous());
-
-        em.close();
-        emf.close();
+        GestionnaireTournois gestionnaire = new GestionnaireTournois(100, 42, emf);
+        try {
+            gestionnaire.ajouterTournoi(tournoi);
+            System.out.println("Planifies : " + gestionnaire.tournoisPlanifies().size());
+            gestionnaire.lancerSuivant();
+            System.out.println("Statut au lancement : " + tournoi.getStatut());
+            RapportTournoi rapport = tournoi.attendreRapport(10, TimeUnit.SECONDS);
+            System.out.println("Rapport : " + rapport);
+            System.out.println("Classement : " + tournoi.classement());
+            System.out.println("Matchs par vainqueur : " + tournoi.matchsParVainqueur().keySet());
+        } finally {
+            gestionnaire.fermer();
+            emf.close();
+        }
     }
 }
