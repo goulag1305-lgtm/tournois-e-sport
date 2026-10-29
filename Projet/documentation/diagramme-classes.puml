@@ -1,0 +1,155 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+abstract class Personne {
+  - id : int
+  - nom : String
+  - prenom : String
+  - pseudo : String
+  - genre : String
+  - telephone : String
+}
+
+class Joueur {
+  - victoiresDepuisArrivee : int
+  - professionnel : boolean
+  + estProfessionnel() : boolean
+}
+
+class Coach {
+  - victoires : int
+  + getVictoires() : int
+}
+
+class Arbitre {
+  - qualifications : Set<Jeu>
+  - matchsArbitres : int
+  + ajouterQualification(jeu : Jeu) : void
+  + estQualifie(jeu : Jeu) : boolean
+}
+
+abstract class Jeu {
+  - nom : String
+  - nombreManches : int
+  + nombreJoueursRequis() : int
+}
+
+class JeuSolo {
+  + nombreJoueursRequis() : int
+}
+
+class JeuEquipe {
+  - joueursParEquipe : int
+  + nombreJoueursRequis() : int
+}
+
+class Equipe {
+  - nom : String
+  - points : int
+  - joueurs : List<Joueur>
+  - coach : Coach
+  + ajouterJoueur(joueur : Joueur) : void
+  + retirerJoueur(joueur : Joueur) : void
+  + setCoach(coach : Coach) : void
+  + compareTo(autre : Equipe) : int
+}
+
+class Match {
+  - jeu : Jeu
+  - arbitre : Arbitre
+  - equipe1 : Equipe
+  - equipe2 : Equipe
+  - alignement1 : List<Joueur>
+  - alignement2 : List<Joueur>
+  - statut : Statut
+  - vainqueur : Equipe
+  + jouer(hasard : Random) : void
+}
+
+class Tournoi {
+  - nom : String
+  - jeu : Jeu
+  - date : LocalDate
+  - budget : double
+  - nombreArenes : int
+  - equipes : List<Equipe>
+  - arbitres : List<Arbitre>
+  - matchs : List<Match>
+  - statut : Statut
+  - rapport : RapportTournoi
+  + ajouterEquipe(equipe : Equipe) : void
+  + ajouterArbitre(arbitre : Arbitre) : void
+  + classement() : List<Equipe>
+  + attendreRapport(delai : long, unite : TimeUnit) : RapportTournoi
+}
+
+class GestionnaireTournois {
+  - tournois : List<Tournoi>
+  - pool : ExecutorService
+  - dureeMatchMs : long
+  - hasard : Random
+  + ajouterTournoi(tournoi : Tournoi) : void
+  + trouverEquipe(nom : String) : Equipe
+  + lancerSuivant() : Tournoi
+  + fermer() : void
+}
+
+class RapportTournoi <<Entity>> {
+  - id : Long
+  - nomTournoi : String
+  - date : LocalDate
+  - nomJeu : String
+  - matchsPrevus : int
+  - matchsJoues : int
+  - equipeGagnante : String
+  - reussite : boolean
+}
+
+enum StatutMatch {
+  PLANIFIE
+  TERMINE
+  INCIDENT
+}
+
+enum StatutTournoi {
+  PLANIFIE
+  EN_COURS
+  TERMINE
+  ECHEC
+}
+
+Personne <|-- Joueur
+Personne <|-- Coach
+Personne <|-- Arbitre
+Jeu <|-- JeuSolo
+Jeu <|-- JeuEquipe
+
+Equipe "0..1" -- "0..*" Joueur : equipe / joueurs
+Equipe "0..1" -- "0..1" Coach : coach
+Arbitre "0..*" -- "0..*" Jeu : qualifications
+Match "0..*" --> "2" Equipe : oppose
+Match "0..*" -- "1..5" Joueur : alignements
+note on link
+  La taille exacte de l'alignement
+  depend du jeu associe au match.
+end note
+Match "0..*" --> "1" Jeu : jeu
+Match "0..*" --> "1" Arbitre : arbitre
+Tournoi "0..*" --> "1" Jeu : jeu
+Tournoi "0..*" o-- "0..*" Equipe : inscriptions
+Tournoi "0..*" --> "0..*" Arbitre : arbitres
+Tournoi "1" o-- "0..*" Match : rencontres
+Tournoi "1" ..> "0..1" RapportTournoi : produit
+GestionnaireTournois "1" -- "0..*" Tournoi : gere
+Match ..> StatutMatch
+Tournoi ..> StatutTournoi
+
+note right of Tournoi
+  Un tournoi exige au moins 4 equipes
+  et au moins 1 arbitre qualifie au lancement.
+  Son classement utilise les victoires de
+  ses matchs, pas les points de carriere.
+end note
+
+@enduml
